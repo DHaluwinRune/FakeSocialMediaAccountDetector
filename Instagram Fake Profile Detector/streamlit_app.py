@@ -235,13 +235,13 @@ def main():
         return
 
     if mode == "Fusion (account + video)":
-        st.caption("Combineert profielmetadata met videoframes.")
+        st.caption("Combineert profielmetadata met videoframes (standaard 70%/30%).")
         with st.form("fusion_form"):
             profile_input = st.text_input("Instagram username of URL", key="fusion_input")
             max_videos = st.slider("Aantal laatste video posts", 1, 20, 5, 1, key="fusion_max_videos")
             fps = st.slider("Frames per seconde", 0.5, 5.0, 1.0, 0.5, key="fusion_fps")
             max_frames = st.slider("Max frames per video", 1, 30, 10, 1, key="fusion_max_frames")
-            weight_account = st.slider("Gewicht account model", 0.0, 1.0, 0.5, 0.05, key="fusion_weight")
+            weight_account = st.slider("Gewicht account model", 0.0, 1.0, 0.7, 0.05, key="fusion_weight")
             threshold = st.slider("Decision threshold", 0.1, 0.9, 0.5, 0.05, key="fusion_threshold")
             submitted = st.form_submit_button("Check account")
 

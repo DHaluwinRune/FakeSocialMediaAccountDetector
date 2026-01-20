@@ -27,6 +27,8 @@ TIKTOK_HEADERS = {
         "Chrome/121.0.0.0 Safari/537.36"
     )
 }
+FUSION_WEIGHT_ACCOUNT = 0.7
+FUSION_WEIGHT_CNN = 0.3
 
 
 class SimpleCNN(nn.Module):
@@ -383,11 +385,14 @@ def build_fusion_explanation(account_prob, video_prob, used_video):
             f"Account fake probability: {account_prob:.0%}.",
             "Final label uses a 50% threshold on the fake probability.",
         ]
-    fusion_prob = (account_prob + video_prob) / 2.0
+    fusion_prob = (account_prob * FUSION_WEIGHT_ACCOUNT) + (
+        video_prob * FUSION_WEIGHT_CNN
+    )
     return [
         f"Account fake probability: {account_prob:.0%}.",
         f"Video-frame fake probability: {video_prob:.0%}.",
-        f"Fusion uses an equal-weight average → {fusion_prob:.0%} fake.",
+        "Fusion uses a 70/30 weighting (account/CNN).",
+        f"Weighted average: {fusion_prob:.0%} fake.",
         "Final label uses a 50% threshold on the fused probability.",
     ]
 
@@ -595,7 +600,10 @@ elif mode == "Video (CNN frames)":
             st.subheader("Explanation")
             st.markdown("\n".join(f"- {line}" for line in explanation_lines))
 elif mode == "Fusion (account + video)":
-    st.write("Combine live profile data with CNN predictions from recent video frames.")
+    st.write(
+        "Combine live profile data with CNN predictions from recent video frames "
+        "(70% metadata, 30% CNN)."
+    )
     username = st.text_input(
         "TikTok username or profile link",
         placeholder="@username or https://www.tiktok.com/@username",
@@ -683,7 +691,9 @@ elif mode == "Fusion (account + video)":
                 fusion_prob = float(account_prob)
                 fusion_label = "FAKE/BOT" if fusion_prob >= 0.5 else "REAL"
             else:
-                fusion_prob = (float(account_prob) + float(video_fake_prob)) / 2.0
+                fusion_prob = (float(account_prob) * FUSION_WEIGHT_ACCOUNT) + (
+                    float(video_fake_prob) * FUSION_WEIGHT_CNN
+                )
                 fusion_label = "FAKE/BOT" if fusion_prob >= 0.5 else "REAL"
 
             st.subheader("Result")

@@ -22,8 +22,8 @@ def fuse_probabilities(
     account_prob: float,
     cnn_prob: float,
     threshold: float = 0.5,
-    weight_account: float = 0.5,
-    weight_cnn: float = 0.5,
+    weight_account: float = 0.7,
+    weight_cnn: float = 0.3,
 ) -> dict:
     weight_account, weight_cnn = _normalize_weights(weight_account, weight_cnn)
     combined = (account_prob * weight_account) + (cnn_prob * weight_cnn)
@@ -61,8 +61,8 @@ def _predict_cnn_for_username(
 def predict_fusion_from_profile_input(
     profile_input: str,
     threshold: float = 0.5,
-    weight_account: float = 0.5,
-    weight_cnn: float = 0.5,
+    weight_account: float = 0.7,
+    weight_cnn: float = 0.3,
     max_videos: int = 5,
     fps: float = 1.0,
     max_frames_per_video: int = 10,

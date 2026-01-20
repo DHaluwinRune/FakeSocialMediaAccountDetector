@@ -57,6 +57,8 @@ TIKTOK_HEADERS = {
 }
 
 TIKTOK_MODEL_DIR = TIKTOK_ROOT / "models"
+FUSION_WEIGHT_ACCOUNT = 0.7
+FUSION_WEIGHT_CNN = 0.3
 
 st.set_page_config(page_title="Fake Profile Detector", layout="centered")
 
@@ -408,11 +410,14 @@ def tt_build_fusion_explanation(account_prob, video_prob, used_video):
             f"Account fake probability: {account_prob:.0%}.",
             "Final label uses a 50% threshold on the fake probability.",
         ]
-    fusion_prob = (account_prob + video_prob) / 2.0
+    fusion_prob = (account_prob * FUSION_WEIGHT_ACCOUNT) + (
+        video_prob * FUSION_WEIGHT_CNN
+    )
     return [
         f"Account fake probability: {account_prob:.0%}.",
         f"Video-frame fake probability: {video_prob:.0%}.",
-        f"Fusion uses an equal-weight average of {fusion_prob:.0%} fake.",
+        "Fusion uses a 70/30 weighting (account/CNN).",
+        f"Weighted average: {fusion_prob:.0%} fake.",
         "Final label uses a 50% threshold on the fused probability.",
     ]
 
@@ -739,7 +744,7 @@ def render_instagram():
         return
 
     if mode == "Fusion (account + video)":
-        st.caption("Combines profile metadata with video frames.")
+        st.caption("Combines profile metadata (70%) with video frames (30%).")
         with st.form("ig_fusion_form", border=False):
             profile_input = st.text_input(
                 "Instagram username or profile URL",
@@ -754,7 +759,7 @@ def render_instagram():
         max_videos = 5
         fps = 1.0
         max_frames = 2
-        weight_account = 0.5
+        weight_account = FUSION_WEIGHT_ACCOUNT
         threshold = 0.5
         if not profile_input.strip():
             st.error("Please enter a username or profile URL.")
@@ -1026,7 +1031,10 @@ def render_tiktok():
                 st.markdown("\n".join(f"- {line}" for line in explanation_lines))
         return
 
-    st.write("Combine live profile data with CNN predictions from recent video frames.")
+    st.write(
+        "Combine live profile data with CNN predictions from recent video frames "
+        "(70% metadata, 30% CNN)."
+    )
     username = st.text_input(
         "TikTok username or profile link",
         placeholder="@username or https://www.tiktok.com/@username",
@@ -1115,7 +1123,9 @@ def render_tiktok():
                 fusion_prob = float(account_prob)
                 fusion_label = "FAKE/BOT" if fusion_prob >= 0.5 else "REAL"
             else:
-                fusion_prob = (float(account_prob) + float(video_fake_prob)) / 2.0
+                fusion_prob = (float(account_prob) * FUSION_WEIGHT_ACCOUNT) + (
+                    float(video_fake_prob) * FUSION_WEIGHT_CNN
+                )
                 fusion_label = "FAKE/BOT" if fusion_prob >= 0.5 else "REAL"
 
             st.subheader("Result")
