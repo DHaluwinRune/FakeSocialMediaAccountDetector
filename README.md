@@ -1,0 +1,2 @@
+# FakeSocialMediaAccountDetector
+yes
