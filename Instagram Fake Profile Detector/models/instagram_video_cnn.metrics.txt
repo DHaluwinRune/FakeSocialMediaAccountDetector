@@ -1,0 +1,1 @@
+2026-01-09T14:12:51 | samples=3970 | accuracy=0.5239 | precision=0.1139 | recall=0.1271 | f1=0.1201

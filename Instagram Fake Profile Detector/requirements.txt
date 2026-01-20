@@ -1,0 +1,8 @@
+pandas
+scikit-learn
+joblib
+instaloader
+streamlit
+torch
+torchvision
+Pillow

@@ -1,0 +1,24 @@
+Modaliteit vergelijking
+
+Bronnen:
+- models/instagram_fake_detector.metrics.txt (2026-01-09T13:16:07, samples=1000)
+- models/instagram_video_cnn.metrics.txt (2026-01-09T14:12:51, samples=3970)
+
+Account model (profieldata):
+- accuracy=0.9910
+- precision=0.9920
+- recall=0.9900
+- f1=0.9910
+- roc_auc=0.9997
+
+CNN model (video frames):
+- accuracy=0.5239
+- precision=0.1139
+- recall=0.1271
+- f1=0.1201
+
+Vergelijking / conclusie:
+- Het account model presteert duidelijk beter op alle metrics dan het CNN model.
+- Het CNN model zit dicht bij toevalsniveau, dus een eenvoudige multimodale combinatie
+  zou de account prestaties waarschijnlijk niet verbeteren tenzij het CNN model
+  wordt verbeterd of sterk lager gewogen.

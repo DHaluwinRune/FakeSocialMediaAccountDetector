@@ -1,0 +1,27 @@
+Kostenanalyse CPU/GPU-training
+
+Inputs:
+- Data/Instagram_fake_profile_dataset.csv: 5,000 rijen (~216K)
+- Data/video_frames: 9,115 frames (~688M) van 24 users
+- CNN split: 19 train users (5,145 frames), 5 val users (3,970 frames)
+- Default CNN instellingen: epochs=10, batch_size=32, image_size=224
+
+Account model (RandomForest 300 trees):
+- Train/test split: ~4,000 / ~1,000 rijen
+- CPU-only, zeer licht; training verwacht seconden (GPU niet nodig).
+- Kostenformule: cost = runtime_hours * cpu_hourly_rate
+
+CNN model (ResNet18):
+- Frames per epoch: 5,145 train + 3,970 val = 9,115
+- Frames verwerkt over 10 epochs: ~91,150
+- Tijdschatting = total_frames / throughput
+  Voorbeeld throughput (images per second) -> tijd:
+  - CPU 20 img/s  -> ~76 min
+  - CPU 50 img/s  -> ~30 min
+  - GPU 400 img/s -> ~3.8 min
+  - GPU 800 img/s -> ~1.9 min
+- Kostenformule: cost = runtime_hours * hourly_rate (CPU/GPU)
+- Energiekost: kWh = (avg_watt / 1000) * runtime_hours
+
+Fusion model:
+- Geen extra training; alleen inference-kosten (account + CNN).

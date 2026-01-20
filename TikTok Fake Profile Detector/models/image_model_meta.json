@@ -1,0 +1,26 @@
+{
+  "architecture": "simple_cnn",
+  "batch_size": 32,
+  "best_val_accuracy": 0.9105691056910569,
+  "class_to_idx": {
+    "fake": 0,
+    "real": 1
+  },
+  "classes": [
+    "fake",
+    "real"
+  ],
+  "counts_total": {
+    "fake": 650,
+    "real": 3040
+  },
+  "epochs": 20,
+  "final_val_accuracy": 0.9105691056910569,
+  "image_size": 224,
+  "learning_rate": 0.0005,
+  "random_state": 42,
+  "train_size": 2952,
+  "trained_at": "2026-01-16T11:02:37+00:00",
+  "val_size": 738,
+  "val_split": 0.2
+}

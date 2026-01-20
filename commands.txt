@@ -1,0 +1,6 @@
+GaanBanaan12!!!
+
+stappen:
+1. venv aanmaken: python -m venv .venv 
+2. venv activeren (windows): .venv\Scripts\activate
+3. packages installeren: pip install -r requirements.txt

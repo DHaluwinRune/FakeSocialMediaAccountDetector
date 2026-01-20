@@ -1,0 +1,6 @@
+{
+  "feature_set": "live-video",
+  "has_video_features": false,
+  "n_estimators": 300,
+  "trained_at": "2026-01-08T13:52:29+00:00"
+}

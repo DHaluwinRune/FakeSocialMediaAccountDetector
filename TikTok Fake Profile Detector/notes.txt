@@ -1,0 +1,51 @@
+Live TikTok fake account detector
+
+Doel
+- Een gebruiker geeft een TikTok username of profiel link in.
+- Het systeem haalt live publieke profieldata op (en optioneel de laatste 20 videos).
+- Het model voorspelt of het account eerder fake/bot of echt is.
+
+Datasets en training
+- Trainingsdata komt uit data/dataset/accounts.csv en videos.csv (TikTok dataset).
+- De labels staan in accounts.csv (IsABot).
+- Er is een live training set: alleen features die publiek zichtbaar zijn.
+- Er is een live-video training set: profiel + geaggregeerde video features (laatste 20 videos).
+- Het model is een RandomForestClassifier met class_weight="balanced".
+- Missende waarden worden ingevuld met medianen (SimpleImputer).
+
+Live features (profiel)
+- IsAccountPrivate, IsVerified, HasProfilePicture
+- NumberFollowing, NumberFollowers, NumberLikes, NumberOfPosts
+- HasInstagramLink, HasYoutubeLink
+- HasAccountDescription, HasLinkInDescription, PostsExist
+- FollowingToFollowerRatio, LikesToFollowerRatio
+
+Live video features (last 20 videos)
+- AverageNumberOfLikes, AverageNumberOfComments, AverageNumberOfForwardings
+- AverageNumberOfViews, AverageNumberOfHashtags, AverageNumberOfLinkedProfiles
+- AverageNumberOfCharacters
+- LikesToViewRatio, CommentsToViewRatio
+
+Belangrijkste scripts
+- scripts/train_model.py
+  - Train model met --feature-set live of --feature-set live-video.
+  - Schrijft artifacts naar models/ (model.joblib, feature_columns.json, metrics.json, model_meta.json).
+- scripts/predict_account.py
+  - Live scraping van TikTok profielpagina.
+  - Haalt profieldata en videos op, bouwt features, doet predictie.
+  - Als er geen publieke videos zijn, valt terug op profieldata.
+- app.py
+  - Streamlit UI die live predicties doet.
+
+Gebruik (CLI)
+- Installatie: pip install -r requirements.txt
+- Train live-video model: python scripts/train_model.py --feature-set live-video
+- Predict live: python scripts/predict_account.py
+
+Gebruik (UI)
+- streamlit run app.py
+
+Beperkingen
+- TikTok kan requests blokkeren (bot checks).
+- Alleen publieke data is beschikbaar.
+- Als videos ontbreken, worden video features leeg gelaten en geimputeerd.
