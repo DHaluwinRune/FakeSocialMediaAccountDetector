@@ -12,10 +12,27 @@ from src.fusion_predict import predict_fusion_from_profile_input
 from src.instagram import ProfileFetchError, features_from_profile_input
 from src.predict import load_model, predict_from_features
 
+FEATURE_LABELS = {
+    "profile pic": "Profielfoto aanwezig",
+    "nums/length username": "Cijfers in username",
+    "fullname words": "Woorden in volledige naam",
+    "nums/length fullname": "Cijfers in volledige naam",
+    "name==username": "Naam is username",
+    "description length": "Bio lengte",
+    "external URL": "Externe link",
+    "private": "Account is prive",
+    "#posts": "Aantal posts",
+    "#followers": "Aantal volgers",
+    "#follows": "Aantal gevolgd",
+}
+
 
 @st.cache_resource
 def get_account_model():
     return load_model()
+
+def human_feature_name(feature: str) -> str:
+    return FEATURE_LABELS.get(feature, feature)
 
 def get_feature_importance_df(model) -> pd.DataFrame | None:
     if not hasattr(model, "named_steps"):
@@ -29,6 +46,8 @@ def get_feature_importance_df(model) -> pd.DataFrame | None:
     df = pd.DataFrame(
         {"feature": FEATURE_ORDER, "importance": importances}
     ).sort_values("importance", ascending=False)
+    df["signal"] = df["feature"].map(human_feature_name)
+    df["influence_pct"] = (df["importance"] * 100.0).round(1)
     return df
 
 
@@ -44,26 +63,26 @@ def _format_feature_value(feature: str, value) -> str:
 
 def build_account_explanation(features: dict, result: dict, model) -> str:
     parts = [
-        "Het account-model gebruikt profielmetadata (username/bio/volgers/posts) "
-        "en combineert deze signalen in een score."
+        "Het model bekijkt profielgegevens (naam, bio, volgers, posts) en combineert "
+        "die om in te schatten hoe waarschijnlijk een account fake is."
     ]
     reasons = build_account_reasons(features, result["prediction"])
     if reasons:
-        parts.append("Signalen die richting deze beslissing wijzen: " + ", ".join(reasons) + ".")
+        parts.append("Signalen die meespeelden: " + ", ".join(reasons) + ".")
     else:
-        parts.append("Geen duidelijke dominante signalen gevonden in de metadata.")
+        parts.append("Geen duidelijke dominante signalen; het model kijkt naar het totaalbeeld.")
     importance_df = get_feature_importance_df(model)
     if importance_df is not None:
         top_features = importance_df.head(5)["feature"].tolist()
         top_values = [
-            f"{name}={_format_feature_value(name, features.get(name, 0))}"
+            f"{human_feature_name(name)}: {_format_feature_value(name, features.get(name, 0))}"
             for name in top_features
         ]
-        parts.append("Belangrijkste (globale) kenmerken: " + ", ".join(top_values) + ".")
+        parts.append("Belangrijkste (globale) profielkenmerken: " + ", ".join(top_values) + ".")
     parts.append(
-        "Modelscore: "
-        f"{result['fake_probability']:.4f} "
-        f"(drempel {result['threshold']:.2f}) -> {result['prediction']}."
+        "Eindinschatting: "
+        f"{result['fake_probability']:.2%} kans op fake "
+        f"(drempel {result['threshold']:.0%}) -> {result['prediction']}."
     )
     return " ".join(parts)
 
@@ -142,9 +161,9 @@ def build_cnn_explanation(result: dict, label: str, unit_count_key: str) -> str:
         "dus de beelden lijken meer op echte voorbeelden."
     )
     return (
-        f"Het CNN-model gebruikt visuele patronen in {count} {label}. "
-        f"Modelscore: {result['fake_probability']:.4f} "
-        f"(drempel {result['threshold']:.2f}) -> {result['prediction']}. "
+        f"Het CNN-model kijkt naar visuele patronen in {count} {label}. "
+        f"Het schat {result['fake_probability']:.2%} kans op fake "
+        f"(drempel {result['threshold']:.0%}) -> {result['prediction']}. "
         + pattern_note
     )
 
@@ -153,24 +172,24 @@ def build_fusion_explanation(result: dict, features: dict) -> str:
     reasons = build_account_reasons(features, result["prediction"])
     reasons_text = ""
     if reasons:
-        reasons_text = "Account-signalen: " + ", ".join(reasons) + ". "
+        reasons_text = "Profielsignalen: " + ", ".join(reasons) + ". "
     if result.get("cnn_probability") is None:
         return (
-            "Geen visuele data beschikbaar; voorspelling gebeurt enkel op account-metadata. "
+            "Geen bruikbare visuele data gevonden; de beslissing gebruikt alleen profielgegevens. "
             + reasons_text +
-            f"Account prob={result['account_probability']:.4f}. "
-            f"Score: {result['fake_probability']:.4f} "
-            f"(drempel {result['threshold']:.2f}) -> {result['prediction']}."
+            f"Het profielmodel schat {result['account_probability']:.2%} kans op fake. "
+            f"Eindresultaat: {result['fake_probability']:.2%} "
+            f"(drempel {result['threshold']:.0%}) -> {result['prediction']}."
         )
     return (
-        "De fusion-score is een gewogen gemiddelde van account- en CNN-signalen. "
+        "De voorspelling combineert profielgegevens "
+        f"({result['weights']['account']:.0%}) met visuele patronen "
+        f"({result['weights']['cnn']:.0%}). "
         + reasons_text +
-        f"Account prob={result['account_probability']:.4f}, "
-        f"CNN prob={result['cnn_probability']:.4f}, "
-        f"gewichten={result['weights']['account']:.2f}/"
-        f"{result['weights']['cnn']:.2f}. "
-        f"Gecombineerde score: {result['fake_probability']:.4f} "
-        f"(drempel {result['threshold']:.2f}) -> {result['prediction']}."
+        f"Het profielmodel schat {result['account_probability']:.2%} kans op fake, "
+        f"en het visuele model {result['cnn_probability']:.2%}. "
+        f"Samen geeft dat ongeveer {result['fake_probability']:.2%}. "
+        f"Met drempel {result['threshold']:.0%} is het eindlabel {result['prediction']}."
     )
 
 
@@ -221,16 +240,22 @@ def main():
         result = predict_from_features(model, features, threshold=threshold)
         st.subheader("Result")
         st.write(f"Prediction: **{result['prediction']}**")
-        st.metric("Fake probability", f"{result['fake_probability']:.4f}")
+        st.metric("Fake probability", f"{result['fake_probability']:.2%}")
         st.subheader("Uitleg")
         st.write(build_account_explanation(features, result, model))
         importance_df = get_feature_importance_df(model)
         if importance_df is not None:
-            st.subheader("Belangrijkste kenmerken")
-            st.caption("Globale feature importance uit het RandomForest model.")
-            st.dataframe(importance_df.head(10), use_container_width=True)
+            st.subheader("Belangrijkste profielsignalen")
+            st.caption(
+                "Deze profielvelden hebben gemiddeld de grootste invloed op het accountmodel; "
+                "percentages tonen relatieve invloed, niet de kans op fake."
+            )
+            importance_display = importance_df.head(10)[
+                ["signal", "influence_pct"]
+            ].rename(columns={"signal": "Signaal", "influence_pct": "Invloed (%)"})
+            st.dataframe(importance_display, use_container_width=True)
             st.bar_chart(
-                importance_df.head(10).set_index("feature")["importance"]
+                importance_display.set_index("Signaal")["Invloed (%)"]
             )
         return
 
@@ -275,31 +300,40 @@ def main():
 
         st.subheader("Result")
         st.write(f"Prediction: **{result['prediction']}**")
-        st.metric("Fake probability", f"{result['fake_probability']:.4f}")
+        st.metric("Fake probability", f"{result['fake_probability']:.2%}")
         if not result.get("cnn_available", True):
             st.info("Geen visuele data beschikbaar; gebruikt enkel profieldata.")
-        cnn_prob_text = (
-            f"{result['cnn_probability']:.4f}"
-            if result.get("cnn_probability") is not None
-            else "n.v.t."
-        )
-        st.caption(
-            "Account prob: "
-            f"{result['account_probability']:.4f} | "
-            "CNN prob: "
-            f"{cnn_prob_text} | "
-            "Weights: "
-            f"{result['weights']['account']:.2f}/"
-            f"{result['weights']['cnn']:.2f}"
-        )
+        if result.get("cnn_error"):
+            st.warning(result["cnn_error"])
+        if result.get("cnn_probability") is None:
+            st.caption(
+                "Profielgegevens wijzen op ongeveer "
+                f"{result['account_probability']:.2%} fake. "
+                "Visuele info was niet beschikbaar."
+            )
+        else:
+            st.caption(
+                "Profielgegevens wijzen op ongeveer "
+                f"{result['account_probability']:.2%} fake, "
+                "visuele info op ongeveer "
+                f"{result['cnn_probability']:.2%} fake. "
+                f"We combineren dit met {result['weights']['account']:.0%}/"
+                f"{result['weights']['cnn']:.0%} (profiel/visueel)."
+            )
         st.subheader("Uitleg")
         st.write(build_fusion_explanation(result, result.get("account_features", {})))
         model = get_account_model()
         importance_df = get_feature_importance_df(model)
         if importance_df is not None:
-            st.subheader("Belangrijkste kenmerken (account model)")
-            st.caption("Globale feature importance uit het RandomForest model.")
-            st.dataframe(importance_df.head(10), use_container_width=True)
+            st.subheader("Belangrijkste profielsignalen")
+            st.caption(
+                "Deze profielvelden hebben gemiddeld de grootste invloed op het accountmodel; "
+                "percentages tonen relatieve invloed, niet de kans op fake."
+            )
+            importance_display = importance_df.head(10)[
+                ["signal", "influence_pct"]
+            ].rename(columns={"signal": "Signaal", "influence_pct": "Invloed (%)"})
+            st.dataframe(importance_display, use_container_width=True)
         return
 
     if mode == "Screenshot (image)":
@@ -338,7 +372,7 @@ def main():
 
         st.subheader("Result")
         st.write(f"Prediction: **{result['prediction']}**")
-        st.metric("Fake probability", f"{result['fake_probability']:.4f}")
+        st.metric("Fake probability", f"{result['fake_probability']:.2%}")
         st.subheader("Uitleg")
         st.write(build_cnn_explanation(result, "images", "image_count"))
         st.caption(f"Images used: {result['image_count']}")
@@ -381,7 +415,7 @@ def main():
 
     st.subheader("Result")
     st.write(f"Prediction: **{result['prediction']}**")
-    st.metric("Fake probability", f"{result['fake_probability']:.4f}")
+        st.metric("Fake probability", f"{result['fake_probability']:.2%}")
     st.subheader("Uitleg")
     st.write(build_cnn_explanation(result, "frames", "frame_count"))
     st.caption(f"Frames used: {result['frame_count']}")

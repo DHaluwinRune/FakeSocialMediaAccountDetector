@@ -59,6 +59,19 @@ TIKTOK_HEADERS = {
 TIKTOK_MODEL_DIR = TIKTOK_ROOT / "models"
 FUSION_WEIGHT_ACCOUNT = 0.7
 FUSION_WEIGHT_CNN = 0.3
+IG_FEATURE_LABELS = {
+    "profile pic": "Profile photo present",
+    "nums/length username": "Digits in username",
+    "fullname words": "Words in full name",
+    "nums/length fullname": "Digits in full name",
+    "name==username": "Name matches username",
+    "description length": "Bio length",
+    "external URL": "External link",
+    "private": "Account is private",
+    "#posts": "Post count",
+    "#followers": "Follower count",
+    "#follows": "Following count",
+}
 
 st.set_page_config(page_title="Fake Profile Detector", layout="centered")
 
@@ -439,7 +452,13 @@ def ig_get_feature_importance_df(model) -> pd.DataFrame | None:
     df = pd.DataFrame(
         {"feature": FEATURE_ORDER, "importance": importances}
     ).sort_values("importance", ascending=False)
+    df["signal"] = df["feature"].map(ig_human_feature_name)
+    df["influence_pct"] = (df["importance"] * 100.0).round(1)
     return df
+
+
+def ig_human_feature_name(feature: str) -> str:
+    return IG_FEATURE_LABELS.get(feature, feature)
 
 
 def ig_format_feature_value(feature: str, value) -> str:
@@ -454,26 +473,26 @@ def ig_format_feature_value(feature: str, value) -> str:
 
 def ig_build_account_explanation(features: dict, result: dict, model) -> str:
     parts = [
-        "The account model uses profile metadata (username/bio/followers/posts) "
-        "and combines these signals into a score."
+        "We look at profile details (name, bio, followers, posts) and combine them to "
+        "estimate how likely the account is fake."
     ]
     reasons = ig_build_account_reasons(features, result["prediction"])
     if reasons:
-        parts.append("Signals supporting this decision: " + ", ".join(reasons) + ".")
+        parts.append("Profile cues that influenced the decision: " + ", ".join(reasons) + ".")
     else:
-        parts.append("No strong signals found in the metadata.")
+        parts.append("No strong profile cues stand out; the model relies on the overall pattern.")
     importance_df = ig_get_feature_importance_df(model)
     if importance_df is not None:
         top_features = importance_df.head(5)["feature"].tolist()
         top_values = [
-            f"{name}={ig_format_feature_value(name, features.get(name, 0))}"
+            f"{ig_human_feature_name(name)}: {ig_format_feature_value(name, features.get(name, 0))}"
             for name in top_features
         ]
-        parts.append("Top global features: " + ", ".join(top_values) + ".")
+        parts.append("Most influential profile fields overall: " + ", ".join(top_values) + ".")
     parts.append(
-        "Model score: "
-        f"{result['fake_probability']:.4f} "
-        f"(threshold {result['threshold']:.2f}) -> {result['prediction']}."
+        "Final estimate: "
+        f"{result['fake_probability']:.2%} chance of being fake "
+        f"(decision threshold {result['threshold']:.0%}) -> {result['prediction']}."
     )
     return " ".join(parts)
 
@@ -551,9 +570,9 @@ def ig_build_cnn_explanation(result: dict, label: str, unit_count_key: str) -> s
         "so the images look closer to real examples."
     )
     return (
-        f"The CNN model uses visual patterns in {count} {label}. "
-        f"Model score: {result['fake_probability']:.4f} "
-        f"(threshold {result['threshold']:.2f}) -> {result['prediction']}. "
+        f"The CNN model looks for visual patterns in {count} {label}. "
+        f"It estimates a {result['fake_probability']:.2%} chance of being fake "
+        f"(decision threshold {result['threshold']:.0%}) -> {result['prediction']}. "
         + pattern_note
     )
 
@@ -562,24 +581,25 @@ def ig_build_fusion_explanation(result: dict, features: dict) -> str:
     reasons = ig_build_account_reasons(features, result["prediction"])
     reasons_text = ""
     if reasons:
-        reasons_text = "Account signals: " + ", ".join(reasons) + ". "
+        reasons_text = "Profile cues: " + ", ".join(reasons) + ". "
     if result.get("cnn_probability") is None:
         return (
-            "No visual data available; using account metadata only. "
+            "No usable visual data was found, so the decision uses profile details only. "
             + reasons_text
-            + f"Account prob={result['account_probability']:.4f}. "
-            f"Score: {result['fake_probability']:.4f} "
-            f"(threshold {result['threshold']:.2f}) -> {result['prediction']}."
+            + f"The profile model estimates about {result['account_probability']:.2%} fake. "
+            f"Final result: {result['fake_probability']:.2%} "
+            f"(decision threshold {result['threshold']:.0%}) -> {result['prediction']}."
         )
     return (
-        "The fusion score is a weighted average of account and CNN signals. "
+        "This result blends profile details "
+        f"({result['weights']['account']:.0%}) with visual patterns from posts "
+        f"({result['weights']['cnn']:.0%}). "
         + reasons_text
-        + f"Account prob={result['account_probability']:.4f}, "
-        f"CNN prob={result['cnn_probability']:.4f}, "
-        f"weights={result['weights']['account']:.2f}/"
-        f"{result['weights']['cnn']:.2f}. "
-        f"Combined score: {result['fake_probability']:.4f} "
-        f"(threshold {result['threshold']:.2f}) -> {result['prediction']}."
+        + f"The profile model estimates about {result['account_probability']:.2%} fake, "
+        f"and the visual model estimates about {result['cnn_probability']:.2%} fake. "
+        f"Together that gives about {result['fake_probability']:.2%}. "
+        f"With a decision threshold of {result['threshold']:.0%}, the final label is "
+        f"{result['prediction']}."
     )
 
 
@@ -632,15 +652,21 @@ def render_instagram():
         result = predict_from_features(model, features, threshold=threshold)
         st.subheader("Result")
         st.metric("Prediction", result["prediction"])
-        st.metric("Fake probability", f"{result['fake_probability']:.4f}")
+        st.metric("Fake probability", f"{result['fake_probability']:.2%}")
         st.subheader("Explanation")
         st.write(ig_build_account_explanation(features, result, model))
         importance_df = ig_get_feature_importance_df(model)
         if importance_df is not None:
-            st.subheader("Top features")
-            st.caption("Global feature importance from the RandomForest model.")
-            st.dataframe(importance_df.head(10), width="stretch")
-            st.bar_chart(importance_df.head(10).set_index("feature")["importance"])
+            st.subheader("Most influential profile signals")
+            st.caption(
+                "These profile fields have the strongest overall influence on the account model; "
+                "percentages show relative influence, not probability."
+            )
+            importance_display = importance_df.head(10)[
+                ["signal", "influence_pct"]
+            ].rename(columns={"signal": "Signal", "influence_pct": "Influence (%)"})
+            st.dataframe(importance_display, width="stretch")
+            st.bar_chart(importance_display.set_index("Signal")["Influence (%)"])
         return
 
     if mode == "Screenshot (image)":
@@ -679,7 +705,7 @@ def render_instagram():
 
         st.subheader("Result")
         st.metric("Prediction", result["prediction"])
-        st.metric("Fake probability", f"{result['fake_probability']:.4f}")
+        st.metric("Fake probability", f"{result['fake_probability']:.2%}")
         st.subheader("Explanation")
         st.write(ig_build_cnn_explanation(result, "images", "image_count"))
         st.caption(f"Images used: {result['image_count']}")
@@ -732,7 +758,7 @@ def render_instagram():
 
         st.subheader("Result")
         st.metric("Prediction", result["prediction"])
-        st.metric("Fake probability", f"{result['fake_probability']:.4f}")
+        st.metric("Fake probability", f"{result['fake_probability']:.2%}")
         st.subheader("Explanation")
         label = "frames" if source == "video" else "images"
         st.write(ig_build_cnn_explanation(result, label, "frame_count"))
@@ -787,23 +813,26 @@ def render_instagram():
 
         st.subheader("Result")
         st.metric("Prediction", result["prediction"])
-        st.metric("Fake probability", f"{result['fake_probability']:.4f}")
+        st.metric("Fake probability", f"{result['fake_probability']:.2%}")
         if not result.get("cnn_available", True):
             st.info("No visual data available; using account metadata only.")
-        cnn_prob_text = (
-            f"{result['cnn_probability']:.4f}"
-            if result.get("cnn_probability") is not None
-            else "n/a"
-        )
-        st.caption(
-            "Account prob: "
-            f"{result['account_probability']:.4f} | "
-            "CNN prob: "
-            f"{cnn_prob_text} | "
-            "Weights: "
-            f"{result['weights']['account']:.2f}/"
-            f"{result['weights']['cnn']:.2f}"
-        )
+        if result.get("cnn_error"):
+            st.warning(result["cnn_error"])
+        if result.get("cnn_probability") is None:
+            st.caption(
+                "Profile details suggest about "
+                f"{result['account_probability']:.2%} fake. "
+                "Visual evidence was not available."
+            )
+        else:
+            st.caption(
+                "Profile details suggest about "
+                f"{result['account_probability']:.2%} fake, "
+                "while visuals suggest about "
+                f"{result['cnn_probability']:.2%} fake. "
+                f"We combine them with a {result['weights']['account']:.0%}/"
+                f"{result['weights']['cnn']:.0%} balance (profile/visual)."
+            )
         if result.get("cnn_source") == "image":
             st.caption("CNN inputs: recent photo posts (no public videos found).")
         st.subheader("Explanation")
@@ -811,9 +840,15 @@ def render_instagram():
         model = ig_get_account_model()
         importance_df = ig_get_feature_importance_df(model)
         if importance_df is not None:
-            st.subheader("Top features (account model)")
-            st.caption("Global feature importance from the RandomForest model.")
-            st.dataframe(importance_df.head(10), width="stretch")
+            st.subheader("Most influential profile signals")
+            st.caption(
+                "These profile fields matter most overall to the account model; "
+                "percentages show relative influence, not probability."
+            )
+            importance_display = importance_df.head(10)[
+                ["signal", "influence_pct"]
+            ].rename(columns={"signal": "Signal", "influence_pct": "Influence (%)"})
+            st.dataframe(importance_display, width="stretch")
         return
 
     st.error("Unknown model choice.")

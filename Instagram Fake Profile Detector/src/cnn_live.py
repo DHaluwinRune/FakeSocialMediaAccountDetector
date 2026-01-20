@@ -23,10 +23,15 @@ def _init_instaloader() -> instaloader.Instaloader:
         request_timeout=30.0,
         fatal_status_codes=[403],
     )
+    has_session = _apply_session_cookies(loader)
     ig_user = os.getenv("IG_USERNAME")
     ig_pass = os.getenv("IG_PASSWORD")
     if ig_user and ig_pass:
-        loader.login(ig_user, ig_pass)
+        try:
+            loader.login(ig_user, ig_pass)
+        except Exception:
+            if not has_session:
+                raise
     return loader
 
 
@@ -37,11 +42,54 @@ def _is_rate_limited(exc: Exception) -> bool:
 
 def _format_access_error(exc: Exception) -> str:
     msg = str(exc).lower()
-    if "403" in msg or "forbidden" in msg or "login" in msg or "private" in msg:
+    if "private" in msg:
         return "Instagram account is private; post data cannot be accessed."
+    if (
+        "403" in msg
+        or "forbidden" in msg
+        or "login" in msg
+        or "checkpoint" in msg
+        or "consent" in msg
+        or "challenge" in msg
+    ):
+        return (
+            "Instagram blocked the request or requires login. Public accounts may now "
+            "require an authenticated session. Set IG_USERNAME/IG_PASSWORD or IG_SESSIONID."
+        )
     if _is_rate_limited(exc):
         return "Instagram rate limited the request. Try again later."
     return "Failed to fetch Instagram posts."
+
+
+def _apply_session_cookies(loader: instaloader.Instaloader) -> bool:
+    cookies_raw = os.getenv("IG_COOKIES")
+    session_id = os.getenv("IG_SESSIONID")
+    applied = False
+    if cookies_raw:
+        for part in cookies_raw.split(";"):
+            chunk = part.strip()
+            if not chunk or "=" not in chunk:
+                continue
+            name, value = chunk.split("=", 1)
+            loader.context._session.cookies.set(
+                name.strip(),
+                value.strip(),
+                domain=".instagram.com",
+            )
+            applied = True
+    if session_id:
+        loader.context._session.cookies.set(
+            "sessionid",
+            session_id.strip(),
+            domain=".instagram.com",
+        )
+        loader.context._session.cookies.set(
+            "sessionid",
+            session_id.strip(),
+            domain="www.instagram.com",
+        )
+        applied = True
+    return applied
 
 
 def _fetch_profile(

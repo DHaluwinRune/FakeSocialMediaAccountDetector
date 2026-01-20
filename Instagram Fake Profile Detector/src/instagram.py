@@ -64,13 +64,17 @@ def _load_profile(username: str):
         fatal_status_codes=[403],
     )
 
+    has_session = _apply_session_cookies(loader)
     ig_user = os.getenv("IG_USERNAME")
     ig_pass = os.getenv("IG_PASSWORD")
     if ig_user and ig_pass:
         try:
             loader.login(ig_user, ig_pass)
         except Exception as exc:  # pragma: no cover - error details vary by env
-            raise ProfileFetchError("Instagram login failed. Check IG_USERNAME/IG_PASSWORD.") from exc
+            if not has_session:
+                raise ProfileFetchError(
+                    "Instagram login failed. Check IG_USERNAME/IG_PASSWORD."
+                ) from exc
 
     try:
         return instaloader.Profile.from_username(loader.context, username)
@@ -78,6 +82,37 @@ def _load_profile(username: str):
         raise ProfileFetchError(
             "Failed to fetch profile. The account may be private or blocked without login."
         ) from exc
+
+
+def _apply_session_cookies(loader) -> bool:
+    cookies_raw = os.getenv("IG_COOKIES")
+    session_id = os.getenv("IG_SESSIONID")
+    applied = False
+    if cookies_raw:
+        for part in cookies_raw.split(";"):
+            chunk = part.strip()
+            if not chunk or "=" not in chunk:
+                continue
+            name, value = chunk.split("=", 1)
+            loader.context._session.cookies.set(
+                name.strip(),
+                value.strip(),
+                domain=".instagram.com",
+            )
+            applied = True
+    if session_id:
+        loader.context._session.cookies.set(
+            "sessionid",
+            session_id.strip(),
+            domain=".instagram.com",
+        )
+        loader.context._session.cookies.set(
+            "sessionid",
+            session_id.strip(),
+            domain="www.instagram.com",
+        )
+        applied = True
+    return applied
 
 
 def features_from_profile_input(profile_input: str) -> dict:
