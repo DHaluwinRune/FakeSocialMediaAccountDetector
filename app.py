@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import sys
@@ -169,10 +170,29 @@ small, .stCaption {
   padding: 0.75rem 1rem;
   box-shadow: var(--mct-shadow);
 }
+
+.app-logo {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 220px;
+  max-width: 40vw;
+  z-index: 1000;
+  opacity: 0.95;
+  pointer-events: none;
+}
 </style>
 """
 
 st.markdown(MCT_THEME_CSS, unsafe_allow_html=True)
+
+logo_path = ROOT_DIR / "Opleidingslogo_Howest_Multimedia_en_Creative_Technologies_liggend_BLAUW_RGB.png"
+if logo_path.exists():
+    encoded = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+    st.markdown(
+        f"<img src='data:image/png;base64,{encoded}' class='app-logo' alt='Howest MCT'/>",
+        unsafe_allow_html=True,
+    )
 
 
 class SimpleCNN(nn.Module):
