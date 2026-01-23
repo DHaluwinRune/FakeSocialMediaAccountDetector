@@ -75,6 +75,105 @@ IG_FEATURE_LABELS = {
 
 st.set_page_config(page_title="Fake Profile Detector", layout="centered")
 
+MCT_THEME_CSS = """
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+/* Adjust colors and spacing in :root for future tweaks */
+:root {
+  --mct-primary: #44C9F6;
+  --mct-primary-hover: #2BA8D6;
+  --mct-bg: #F7F9FC;
+  --mct-surface: #FFFFFF;
+  --mct-border: #E5E7EB;
+  --mct-text: #111827;
+  --mct-muted: #6B7280;
+  --mct-radius: 10px;
+  --mct-shadow: 0 4px 12px rgba(17, 24, 39, 0.06);
+}
+
+html, body, [class*="css"] {
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--mct-text);
+}
+
+.stApp {
+  background-color: var(--mct-bg);
+}
+
+#MainMenu, footer, header {
+  visibility: hidden;
+}
+
+/* Subtle container polish without changing layout */
+.block-container {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+/* Buttons */
+div.stButton > button {
+  background: var(--mct-primary);
+  color: #FFFFFF;
+  border: 1px solid var(--mct-primary);
+  border-radius: var(--mct-radius);
+  box-shadow: var(--mct-shadow);
+  font-weight: 600;
+}
+
+div.stButton > button:hover {
+  background: var(--mct-primary-hover);
+  border-color: var(--mct-primary-hover);
+  color: #FFFFFF;
+}
+
+/* Inputs and selectors */
+div.stTextInput input,
+div.stTextArea textarea,
+div.stSelectbox div[data-baseweb="select"] > div,
+div.stMultiSelect div[data-baseweb="select"] > div {
+  background: var(--mct-surface) !important;
+  border: 1px solid var(--mct-border) !important;
+  border-radius: var(--mct-radius) !important;
+  color: var(--mct-text) !important;
+  box-shadow: none !important;
+}
+
+div.stTextInput input:focus,
+div.stTextArea textarea:focus,
+div.stSelectbox div[data-baseweb="select"] > div:focus-within,
+div.stMultiSelect div[data-baseweb="select"] > div:focus-within {
+  border-color: var(--mct-primary) !important;
+  box-shadow: 0 0 0 2px rgba(68, 201, 246, 0.25) !important;
+}
+
+input[type="radio"] {
+  accent-color: var(--mct-primary);
+}
+
+/* Headings */
+h1, h2, h3 {
+  font-weight: 700;
+  color: var(--mct-text);
+}
+
+/* Secondary text */
+small, .stCaption {
+  color: var(--mct-muted);
+}
+
+/* Metrics */
+[data-testid="stMetric"] {
+  background: var(--mct-surface);
+  border: 1px solid var(--mct-border);
+  border-radius: var(--mct-radius);
+  padding: 0.75rem 1rem;
+  box-shadow: var(--mct-shadow);
+}
+</style>
+"""
+
+st.markdown(MCT_THEME_CSS, unsafe_allow_html=True)
+
 
 class SimpleCNN(nn.Module):
     def __init__(self, num_classes):
