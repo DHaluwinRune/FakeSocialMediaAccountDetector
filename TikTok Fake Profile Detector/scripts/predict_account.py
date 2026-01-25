@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 import argparse
 import json
+import os
 import re
 import sys
+import time
 from pathlib import Path
 
 import joblib
@@ -43,7 +45,41 @@ LIVE_VIDEO_FEATURE_COLS = [
 URL_RE = re.compile(r"https?://", re.IGNORECASE)
 HASHTAG_RE = re.compile(r"#([\\w_.-]+)")
 MENTION_RE = re.compile(r"@([\\w_.-]+)")
-DEFAULT_TIMEOUT = 15
+def read_int_env(name, default):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+DEFAULT_CONNECT_TIMEOUT = read_int_env("TIKTOK_CONNECT_TIMEOUT", 10)
+DEFAULT_READ_TIMEOUT = read_int_env("TIKTOK_READ_TIMEOUT", 30)
+DEFAULT_TIMEOUT = DEFAULT_READ_TIMEOUT
+MAX_RETRIES = read_int_env("TIKTOK_MAX_RETRIES", 1)
+RETRY_BACKOFF_SECONDS = read_int_env("TIKTOK_RETRY_BACKOFF_MS", 800) / 1000.0
+
+
+def request_with_retries(url, *, headers=None, params=None, timeout=None):
+    timeout = DEFAULT_READ_TIMEOUT if timeout is None else timeout
+    last_exc = None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            return requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=(DEFAULT_CONNECT_TIMEOUT, timeout),
+            )
+        except requests.RequestException as exc:
+            last_exc = exc
+        if attempt < MAX_RETRIES:
+            time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Request failed without exception.")
 
 def parse_username(raw):
     if raw is None:
@@ -146,7 +182,12 @@ def fetch_profile_state(username, timeout):
         "Referer": "https://www.tiktok.com/",
     }
     try:
-        response = requests.get(url, headers=headers, timeout=timeout)
+        response = request_with_retries(url, headers=headers, timeout=timeout)
+    except requests.Timeout as exc:
+        raise RuntimeError(
+            f"TikTok timed out after {timeout}s. "
+            "Try again later or increase TIKTOK_READ_TIMEOUT."
+        ) from exc
     except requests.RequestException as exc:
         raise RuntimeError(f"Network error: {exc}") from exc
 
@@ -290,7 +331,17 @@ def fetch_video_items_from_api(sec_uid, count, timeout):
             "Chrome/121.0.0.0 Safari/537.36"
         )
     }
-    response = requests.get(url, headers=headers, params=params, timeout=timeout)
+    try:
+        response = request_with_retries(
+            url, headers=headers, params=params, timeout=timeout
+        )
+    except requests.Timeout as exc:
+        raise RuntimeError(
+            f"Video API timed out after {timeout}s. "
+            "Try again later or increase TIKTOK_READ_TIMEOUT."
+        ) from exc
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Video API network error: {exc}") from exc
     if response.status_code != 200:
         raise RuntimeError(f"Video API failed with status {response.status_code}")
     data = response.json()
