@@ -1,21 +1,6 @@
-GaanBanaan12!!!
-
 stappen:
 1. venv aanmaken: python -m venv .venv 
 2. venv activeren (windows): .venv\Scripts\activate
 3. packages installeren: pip install -r requirements.txt
 
 app runnen: streamlit run app.py
-
-Tijdelijk (CMD) als insta variabelen
-
-set IG_USERNAME=jouw_instagram_user
-set IG_PASSWORD=jouw_instagram_pass
-streamlit run app.py
-
-en deze in streamlit host:
-Ga naar je app op Streamlit Cloud
-Settings → Secrets
-Voeg dit toe (TOML‑stijl):
-IG_USERNAME = "jouw_alt_user"
-IG_PASSWORD = "jouw_alt_pass"
